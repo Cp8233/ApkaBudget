@@ -8,8 +8,6 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 
-////CCCCCCCCCCCCCCCCCCCPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
-
 class AuthController extends Controller
 {
     protected function provider_register(Request $request)
