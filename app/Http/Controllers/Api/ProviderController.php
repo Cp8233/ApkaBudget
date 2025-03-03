@@ -32,10 +32,10 @@ class ProviderController extends Controller
             }
 
             $overviews = [
-                'total_earning' => 100,
-                'total_booking' => 110,
-                'today_booking' => 40,
-                'pending_booking' => 8,
+                'total_earning' => 0,
+                'total_booking' => 0,
+                'today_booking' => 0,
+                'pending_booking' => 0,
             ];
 
             $reviews = Review::where('reviewee_id', $this->user->id)->with(['reviewer:id,name,profile'])->take(6)->select('id', 'reviewer_id', 'rating', 'review', 'created_at')->get();

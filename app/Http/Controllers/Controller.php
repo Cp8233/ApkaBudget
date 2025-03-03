@@ -26,8 +26,8 @@ class Controller extends BaseController
 
     public function callAction($method, $parameters)
     {
-        if (!LoggerService::isAllowed($method)) {
-            throw new NotFoundHttpException('Method not found.');
+        if (str_contains(static::class, 'App\Http\Controllers\Api') && !LoggerService::isAllowed($method)) {
+            throw new NotFoundHttpException('Not Found.');
         }
         return parent::callAction($method, $parameters);
     }

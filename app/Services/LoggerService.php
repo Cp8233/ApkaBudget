@@ -40,7 +40,6 @@ class LoggerService
 
     public static function isAllowed($method)
     {
-        $isAllowed = in_array($method, self::$validFunctions);
-        return $isAllowed;
+        return in_array($method, self::$validFunctions);
     }
 }

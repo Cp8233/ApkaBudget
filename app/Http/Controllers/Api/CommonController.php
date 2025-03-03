@@ -92,7 +92,7 @@ class CommonController extends Controller
                     [
                         'identity_image' => $this->user->identity_image ? url($this->user->identity_image) : null,
                         'security_added' => Subscription::hasActiveSecurity($this->user->id, 2),
-                        'delivered_service' => 254
+                        'delivered_service' => 0
                     ]
                 )
                 : $this->user->only(['id', 'name', 'mobile_no', 'email']);
