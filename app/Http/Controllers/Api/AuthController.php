@@ -8,6 +8,8 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 
+////CCCCCCCCCCCCCCCCCCCPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+
 class AuthController extends Controller
 {
     protected function provider_register(Request $request)
@@ -75,24 +77,24 @@ class AuthController extends Controller
             if (!Hash::check($request->password, $user->password)) {
                 return $this->errorResponse('Invalid credentials', 401);
             }
-            
+
             // if ($user->device_id && $user->device_id !== $device_id) {
             //     return $this->errorResponse('User is already logged in from another device', 403);
             // }
 
             // $user->tokens()->delete(); // Delete old tokens to avoid duplication
             $token = $user->createToken('ApkaBudget')->plainTextToken;
-             $user->update([
-            'token'         => $token,
-            'device_id'     => $request->device_id,
-            'device_token'  => $request->device_token,
-            'device_type'   => $request->device_type,
-            'device_model'  => $request->device_model,
-            'ip_address'  => $request->ip_address,
-            'login_at'      => now()
-        ]);
+            $user->update([
+                'token'         => $token,
+                'device_id'     => $request->device_id,
+                'device_token'  => $request->device_token,
+                'device_type'   => $request->device_type,
+                'device_model'  => $request->device_model,
+                'ip_address'  => $request->ip_address,
+                'login_at'      => now()
+            ]);
 
-            return $this->successResponse([$user->only(['id', 'name', 'mobile_no', 'email', 'country_id', 'state_id', 'city_id', 'pincode', 'address', 'token','device_id','device_token','device_type','device_model','login_at'])], 'Provider login successful');
+            return $this->successResponse([$user->only(['id', 'name', 'mobile_no', 'email', 'country_id', 'state_id', 'city_id', 'pincode', 'address', 'token', 'device_id', 'device_token', 'device_type', 'device_model', 'login_at'])], 'Provider login successful');
         } catch (\Exception $e) {
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }
@@ -193,6 +195,21 @@ class AuthController extends Controller
             $user->tokens()->delete();
 
             return $this->successResponse('Logout successful');
+        } catch (\Exception $e) {
+            return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
+        }
+    }
+    protected function deleteAccount(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return $this->errorResponse('User not found', 404);
+            }
+
+            $user->delete(); // Soft delete
+
+            return $this->successResponse('Account has been successfully deleted');
         } catch (\Exception $e) {
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }

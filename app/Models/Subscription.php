@@ -13,6 +13,22 @@ class Subscription extends Model
     protected $table = 'subscriptions';
     protected $fillable = ['type','user_id', 'plan_id','status','start_date','end_date'];
     
+        public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+    
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class, 'plan_id');
+    }
+    
+    public function transactions()
+{
+    return $this->hasMany(Transaction::class, 'subscription_id');
+}
+
+    
     // Check and update expired subscriptions
     public static function updateExpiredSubscriptions($userId, $type)
     {

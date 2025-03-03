@@ -34,6 +34,7 @@ Route::post('verify_otp', [AuthController::class, 'verify_otp']);
 Route::middleware(['api.auth'])->group(function () {
     
     Route::post('logout', [AuthController::class, 'logout']);
+    Route::post('delete-account', [AuthController::class, 'deleteAccount']);
 
     //Provider side api's
     Route::get('identity_types', [ProviderController::class, 'identity_types']);

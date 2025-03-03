@@ -11,5 +11,10 @@ class Plan extends Model
 
     protected $table = 'plans';
     protected $fillable = ['name', 'price','duration','leads','features'];
+    
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class, 'plan_id');
+    }
 
 }
