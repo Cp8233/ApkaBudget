@@ -75,7 +75,7 @@
                         
                         <td>
                             @if($item->subscriptions->isNotEmpty())
-                                {{ date('d-m-Y', strtotime($item->subscriptions->first()->end_date ?? '')) }}
+                                {{  date('d-m-Y', strtotime($item->subscriptions->first()->end_date ?? '')) }}
                             @else
                                 N/A
                             @endif

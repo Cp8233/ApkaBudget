@@ -15,9 +15,9 @@
     <div class="card-header d-flex justify-content-end">
         <a href="{{ route('admin.addSubSubCategory', ['subcategory_id' => $subcategory_id ?? 0, 'subcategory' => $subcategory_name ?? 'default']) }}" 
             class="btn btn-primary btn-sm">
-            <i class="fas fa-plus"></i> Add Sub subCategory
+            <i class="fas fa-plus"></i> Add Sub SubCategory
         </a>
-     </div>
+    </div>
 
     <div class="card-body">
         <div class="table-responsive">
@@ -54,12 +54,10 @@
                                 <i class="fa fa-trash" aria-hidden="true"></i>
                             </button>
 
-                            <a href="{{ route('admin.service', ['category_id' => $val->subcategory->category->id ?? 0, 'subcategory_id' => $val->subcategory_id]) }}" 
-                                class="btn btn-warning btn-sm">
-                                 <i class="fas fa-eye"></i> Services
-                             </a>
-                             
-                            
+                            <a href="{{ route('admin.service', ['category_id' => $val->subcategory->category->id ?? 0, 'subcategory_id' => $val->subcategory_id, 'id' => $val->id ?? 0]) }}" 
+                               class="btn btn-success btn-sm">
+                                <i class="fas fa-eye"></i> Services
+                            </a>    
                         </td>
                     </tr>
                     @endforeach
@@ -68,6 +66,5 @@
         </div>
     </div>
 </div>
-
-
 @endsection
+

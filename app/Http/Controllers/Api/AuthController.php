@@ -116,11 +116,6 @@ class AuthController extends Controller
                     'role' => 1,
                     'mobile_no' => $mobile
                 ]);
-            } else {
-                if ($user->device_id && $user->device_id !== $device_id) {
-                    return $this->errorResponse('User is already logged in from another device', 403);
-                }
-                $user->device_id = $device_id;
             }
 
             $otp = rand(1000, 9999);
@@ -137,7 +132,12 @@ class AuthController extends Controller
     {
         $validation = $this->validateRequest($request, [
             'mobile' => 'required',
-            'otp'    => 'required|digits:4'
+            'otp'    => 'required|digits:4',
+            'device_id'   => 'required',
+            'device_type'   => 'required|in:android,ios,web',
+            'device_model'   => 'required',
+            'device_token'   => 'required',
+            'ip_address'   => 'required',
         ]);
 
         if ($validation) return $validation;
@@ -165,6 +165,10 @@ class AuthController extends Controller
 
             $user->device_id = $device_id;
             $user->device_token = $device_token;
+            $user->device_type = $request->device_type;
+            $user->device_model = $request->device_model;
+            $user->ip_address = $request->ip_address;
+            $user->login_at = now();
 
             // Clear OTP after successful verification
             $user->otp = null;

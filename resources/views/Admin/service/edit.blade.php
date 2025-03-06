@@ -22,7 +22,7 @@
         <h6 class="m-0 font-weight-bold text-primary">Edit Service</h6>
     </div>
     <div class="card-body">
-        <form action="{{ route('admin.edit_service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id, 'id' => $subsubcategory->id]) }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('admin.edit_service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id, 'sub_subcategory_id' => $subsubcategory->id, 'service_id' => $service_id]) }}" method="POST" enctype="multipart/form-data">
             @csrf
 
             <div class="form-group">

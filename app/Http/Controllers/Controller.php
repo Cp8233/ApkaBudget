@@ -9,6 +9,7 @@ use Illuminate\Routing\Controller as BaseController;
 use App\Traits\ApiResponseTrait;
 use App\Services\NotificationService;
 use App\Services\LoggerService;
+use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
 
 class Controller extends BaseController
@@ -17,11 +18,13 @@ class Controller extends BaseController
 
     protected $user;
     protected $notificationService;
+    protected $paymentService;
 
-    public function __construct(NotificationService $notificationService)
+    public function __construct(NotificationService $notificationService,PaymentService $paymentService)
     {
         $this->user = Auth::guard('sanctum')->user();
         $this->notificationService = $notificationService;
+        $this->paymentService = $paymentService;
     }
 
     public function callAction($method, $parameters)

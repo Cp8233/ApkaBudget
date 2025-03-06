@@ -666,37 +666,43 @@ class AdminController extends Controller
              * ✅ServiceList Functionality 
              * ============================ */   
     
-                protected function service($category_id, $subcategory_id)
-                {
-                    $services = Service::where('category_id', $category_id)
-                        ->where('subcategory_id', $subcategory_id)
-                        ->get();
-            
-                    return view('Admin.service.index', compact('services', 'category_id', 'subcategory_id'));
-                }
+             protected function service($category_id, $subcategory_id, $id)
+             {
+                 $services = Service::where('category_id', $category_id)
+                     ->where('subcategory_id', $subcategory_id)
+                     ->where('sub_subcategory_id', $id)
+                     ->get();
+             
+                 return view('Admin.service.index', compact('services', 'category_id', 'subcategory_id', 'id'));
+             }
+             
             
                 // Add Service
-                protected function addService(Request $request, $category_id, $subcategory_id)
+                protected function addService(Request $request, $category_id, $subcategory_id, $sub_subcategory_id)
                 {
                     if ($request->isMethod('get')) {
-                        return view('Admin.service.add', compact('category_id', 'subcategory_id'));
+                        return view('Admin.service.add', [
+                            'category_id' => $category_id,
+                            'subcategory_id' => $subcategory_id,
+                            'sub_subcategory_id' => $sub_subcategory_id
+                        ]);
                     }
-            
+                
                     $request->validate([
                         'service_name' => 'required|string|max:255',
                         'image'        => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
                         'price'        => 'required|numeric',
                         'time'         => 'required|string|max:255'
                     ]);
-            
+                
                     $service = new Service();
                     $service->category_id    = $category_id;
                     $service->subcategory_id = $subcategory_id;
+                    $service->sub_subcategory_id = $sub_subcategory_id;
                     $service->service_name   = $request->service_name;
                     $service->price          = $request->price;
                     $service->time           = $request->time;
-            
-                    // Image Upload
+                
                     if ($request->hasFile('image')) {
                         $file = $request->file('image');
                         $fileName = 'image_' . time() . '.' . $file->getClientOriginalExtension();
@@ -704,92 +710,93 @@ class AdminController extends Controller
                         $file->move($filePath, $fileName);
                         $service->image = 'uploads/services/' . $fileName;
                     }
-            
+                
                     $service->save();
-            
-                    return redirect()->route('admin.service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id])->with('success', 'Service Added Successfully!');
+                
+                    return redirect()->route('admin.service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id, 'id' => $sub_subcategory_id])->with('success', 'Service Added Successfully!');
                 }
-            
+                
                 // Edit Service
-                protected function editService(Request $request, $category_id, $subcategory_id, $id)
-                {
-                    $subsubcategory = Service::find($id);
+                protected function editService(Request $request, $category_id, $subcategory_id, $sub_subcategory_id, $service_id)
+                   {
+                   
+                     $subsubcategory = Service::find($service_id);
+
+                      if (!$subsubcategory) {
+                      return response()->json([
+                        'status' => 0,
+                        'message' => 'Service Not Found!'
+                        ]);
+                       }
+
+         if ($request->isMethod('get')) {
+             return view('Admin.service.edit', compact('subsubcategory', 'category_id', 'subcategory_id', 'service_id'));
+             }
             
-                    if (!$subsubcategory) {
-                        return redirect()->back()->with('error', 'Service Not Found!');
-                    }
-            
-                    if ($request->isMethod('get')) {
-                        return view('Admin.service.edit', compact('subsubcategory', 'category_id', 'subcategory_id'));
-                    }
-            
-                    $request->validate([
-                        'service_name' => 'required|string|max:255',
-                        'image'        => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-                        'price'        => 'required|numeric',
-                        'time'         => 'required'
-                    ]);
-            
-                    $subsubcategory->service_name = $request->service_name;
-                    $subsubcategory->price        = $request->price;
-                    $subsubcategory->time         = $request->time;
-            
-                    // Image Upload
-                    if ($request->hasFile('image')) {
-                        $file = $request->file('image');
-                        $fileName = 'image_' . time() . '.' . $file->getClientOriginalExtension();
-                        $filePath = public_path('uploads/services');
-            
-                        if (!File::exists($filePath)) {
-                            File::makeDirectory($filePath, 0777, true, true);
-                        }
-            
-                        // Purani Image Delete
-                        if ($subsubcategory->image && File::exists(public_path($subsubcategory->image))) {
-                            File::delete(public_path($subsubcategory->image));
-                        }
-            
-                        $file->move($filePath, $fileName);
-                        $subsubcategory->image = 'uploads/services/' . $fileName;
-                    }
-            
-                    $subsubcategory->save();
-            
-                    return redirect()->route('admin.service', [
-                        'category_id' => $category_id,
-                        'subcategory_id' => $subcategory_id
-                    ])->with('success', 'Service Updated Successfully!');
-                }
-            
+          $request->validate([
+             'service_name' => 'required|string|max:255',
+             'image'        => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+             'price'        => 'required|numeric',
+             'time'         => 'required'
+           ]);
+
+         $subsubcategory->service_name = $request->service_name;
+         $subsubcategory->price        = $request->price;
+         $subsubcategory->time         = $request->time;
+
+         if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $fileName = 'image_' . time() . '.' . $file->getClientOriginalExtension();
+                $filePath = public_path('uploads/services');
+
+         if ($subsubcategory->image && File::exists(public_path($subsubcategory->image))) {
+            File::delete(public_path($subsubcategory->image));
+          }
+
+           $file->move($filePath, $fileName);
+           $subsubcategory->image = 'uploads/services/' . $fileName;
+         }
+         $subsubcategory->save();
         
 
-    protected function deleteService($id)
-                   {
-                $service = Service::find($id);
+            return redirect()->route('admin.service', [
+                'category_id' => $category_id,
+                'subcategory_id' => $subcategory_id,
+                'id' => $sub_subcategory_id
+            ])->with('success', 'Service Updated Successfully!');
+}
 
-              if (!$service)
+           
+protected function deleteService($id)
+{
+    $service = Service::find($id);
 
-              {
-                   return response()->json
-                   ([
-                   'status' => 0,
-                   'message' => 'Service Not Found!'
-                   ]);
-              }
+    if (!$service) {
+        return response()->json([
+            'status' => 0,
+            'message' => 'Service Not Found!'
+        ]);
+    }
 
-               // Purani Image Delete
-            if ($service->image && file_exists(public_path($service->image))) {
-            unlink(public_path($service->image)); // Image Delete
-            }
+    // Purani Image Delete
+    if ($service->image && file_exists(public_path($service->image))) {
+        unlink(public_path($service->image));
+    }
 
-         $service->delete();
+    $service->delete();
 
-          return response()->json([
-           'status' => 1,
-            'message' => 'Service deleted successfully!',
-            'route' => route('admin.service', ['category_id' => $service->category_id, 'subcategory_id' => $service->subcategory_id])
-          ]); 
-      }
+    return response()->json([
+        'status' => 1,
+        'message' => 'Service deleted successfully!',
+        'route' => route('admin.service', [
+            'category_id' => $service->category_id,
+            'subcategory_id' => $service->subcategory_id,
+            'id' => $service->id 
+        ])
+    ]);
+}
+
+                
     
 
               /** ============================
@@ -804,7 +811,6 @@ class AdminController extends Controller
     protected function TransProvider()
     {
         $providers = User::with(['subscriptions.plan'])
-
         ->where('role', 2)
         ->get();
     

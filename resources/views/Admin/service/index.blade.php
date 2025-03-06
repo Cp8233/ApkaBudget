@@ -5,8 +5,7 @@
 
 <div class="card shadow mb-4">
     <div class="card-header d-flex justify-content-end">
-        <a href="{{ route('admin.add_service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id]) }}" 
-            class="btn btn-success mb-3">
+        <a href="{{ route('admin.add_service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id, 'sub_subcategory_id' => $id]) }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus"></i> Add Service
         </a>
     </div>
@@ -27,7 +26,7 @@
                 <tbody>
                     @foreach ($services as $key => $service)
                     <tr>
-                        <td>{{ ++$key }}</td>
+                        <td>{{ $key + 1 }}</td>
                         <td>{{ $service->service_name }}</td>
                         <td>
                             @if ($service->image)
@@ -40,15 +39,14 @@
                         <td>{{ $service->time }}</td>
                         <td>{{ $service->price }}</td>
                         <td>
-                            <a href="{{ route('admin.edit_service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id, 'id' => $service->id]) }}" 
-                                class="btn btn-info btn-sm">
+                            <a href="{{ route('admin.edit_service', ['category_id' => $category_id, 'subcategory_id' => $subcategory_id, 'sub_subcategory_id' => $id, 'service_id' => $service->id]) }}" class="btn btn-info btn-sm">
                                 <i class="fas fa-edit"></i> Edit
                             </a>
-
-                            <button class="delete-btn btn btn-danger" data-url="{{ route('admin.delete_service', $service->id) }}">
+                            <button class="btn btn-danger btn-sm delete-btn" 
+                                data-url="{{ route('admin.delete_service', ['id' => $service->id]) }}" 
+                                title="Delete">
                                 <i class="fa fa-trash"></i> Delete
                             </button>
-                        
                         </td>
                     </tr>
                     @endforeach
@@ -58,3 +56,4 @@
     </div>
 </div>
 @endsection
+

@@ -80,9 +80,9 @@ Route::middleware(['auth:admin'])->prefix('admin')->group(function () {
     Route::delete('/delete-subsubcategory/{subcategory_id}/{id}', [AdminController::class, 'deleteSubSubCategory'])->name('admin.delete_subsubcategory');
    
     // Service
-    Route::get('service/{category_id}/{subcategory_id}', [AdminController::class, 'service'])->name('admin.service');
-    Route::match(['get', 'post'], '/admin/add_service/{category_id}/{subcategory_id}', [AdminController::class, 'addService'])->name('admin.add_service');
-    Route::match(['get', 'post'], '/admin/edit_service/{category_id}/{subcategory_id}/{id}', [AdminController::class, 'editService'])->name('admin.edit_service');
+    Route::get('service/{category_id}/{subcategory_id}/{id}', [AdminController::class, 'service'])->name('admin.service');
+    Route::match(['get', 'post'], '/admin/add_service/{category_id}/{subcategory_id}/{sub_subcategory_id}', [AdminController::class, 'addService'])->name('admin.add_service');
+    Route::match(['get', 'post'], '/admin/edit_service/{category_id}/{subcategory_id}/{sub_subcategory_id}/{service_id}', [AdminController::class, 'editService'])->name('admin.edit_service');
     Route::delete('/admin/service/{id}', [AdminController::class, 'deleteService'])->name('admin.delete_service');
  
 

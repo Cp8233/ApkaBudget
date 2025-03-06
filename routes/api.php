@@ -72,3 +72,6 @@ Route::middleware(['api.auth'])->group(function () {
 });
 
 Route::post('send-notification', [UserController::class, 'send_notification']);// check payment
+Route::post('/webhook', [CommonController::class, 'handleWebhook']);
+Route::post('/testpayment', [CommonController::class, 'testPayment']);
+

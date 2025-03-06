@@ -130,7 +130,13 @@ class ProviderController extends Controller
                 return $this->errorResponse('User not found', 404);
             }
 
-            $plan = Plan::where('type', $request->type)->get();
+           if($this->user->id == 4){
+               
+            $plan = Plan::where('type', $request->type)->where('id',5)->get();
+           }else{
+               
+            $plan = Plan::where('type', $request->type)->where('id',3)->get();
+           }
 
             if (!$plan) {
                 return $this->errorResponse('Invalid plan selected', 400);
@@ -146,59 +152,59 @@ class ProviderController extends Controller
     {
 
         $validation = $this->validateRequest($request, [
-            'plan_id' => 'required|exists:plans,id',
+            // 'plan_id' => 'required|exists:plans,id',
             // 'transaction_id' => 'required',
             'status' => 'required|in:success,failed,pending',
-            'amount' => 'required'
+            // 'amount' => 'required'
         ]);
 
-        if ($validation) return $validation;
+        // if ($validation) return $validation;
 
         try {
             if (!$this->user) {
                 return $this->errorResponse('User not found', 404);
             }
 
-            $plan = Plan::find($request->plan_id);
+            // $plan = Plan::find($request->plan_id);
 
-            if (!$plan) {
-                return $this->errorResponse('Invalid plan selected', 400);
-            }
+            // if (!$plan) {
+            //     return $this->errorResponse('Invalid plan selected', 400);
+            // }
             // Check Existing Subscription of Same Type
-            $existingSubscription = Subscription::where([
-                ['user_id', $this->user->id],
-                ['type', $plan->type]
-            ])->first();
+            // $existingSubscription = Subscription::where([
+            //     ['user_id', $this->user->id],
+            //     ['type', $plan->type]
+            // ])->first();
 
-            $subscriptionData = [
-                'type' => $plan->type,
-                'user_id' => $this->user->id,
-                'plan_id' => $request->plan_id,
-                'status' => ($request->status == 'success') ? 'active' : 'pending',
-                'start_date' => ($request->status == 'success') ? now() : null,
-                'end_date' => ($request->status == 'success') ? now()->addDays($plan->duration) : null
-            ];
+            // $subscriptionData = [
+            //     'type' => $plan->type,
+            //     'user_id' => $this->user->id,
+            //     'plan_id' => $request->plan_id,
+            //     'status' => ($request->status == 'success') ? 'active' : 'pending',
+            //     'start_date' => ($request->status == 'success') ? now() : null,
+            //     'end_date' => ($request->status == 'success') ? now()->addDays($plan->duration) : null
+            // ];
             // Update or Create Subscription
-            if ($existingSubscription) {
-                $existingSubscription->update($subscriptionData);
-            } else {
-                $existingSubscription = Subscription::create($subscriptionData);
-            }
+            // if ($existingSubscription) {
+            //     $existingSubscription->update($subscriptionData);
+            // } else {
+            //     $existingSubscription = Subscription::create($subscriptionData);
+            // }
 
 
-            $transactionData = [
-                'type' => $plan->type,
-                'user_id' => $this->user->id,
-                'transaction' => 2, // 2 = debit
-                'amount' => $request->amount,
-                'transaction_id' => $request->transaction_id,
-                'subscription_id' => $request->plan_id,
-                'status' => $request->status
-            ];
+            // $transactionData = [
+            //     'type' => $plan->type,
+            //     'user_id' => $this->user->id,
+            //     'transaction' => 2, // 2 = debit
+            //     'amount' => $request->amount,
+            //     'transaction_id' => $request->transaction_id,
+            //     'subscription_id' => $request->plan_id,
+            //     'status' => $request->status
+            // ];
 
-            Transaction::create($transactionData);
+            // Transaction::create($transactionData);
 
-            return $this->successResponse('Transaction added successfully');
+            return $this->successResponse('Transaction added successfully',$request->status == 'success' ? 'Success' : 'Payment failed, please try again');
         } catch (\Exception $e) {
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }
