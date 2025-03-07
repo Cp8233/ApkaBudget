@@ -62,38 +62,6 @@ class UserController extends Controller
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }
     }
-    // protected function sub_subcategories(Request $request)
-    // {
-    //     $validation = $this->validateRequest($request, [
-    //         'sub_subcategory_id'     => 'required|exists:categories,id',
-    //         'subcategory_id'     => 'required|exists:sub_categories,id'
-    //     ]);
-
-    //     if ($validation) return $validation;
-
-    //     try {
-    //         if (!$this->user) {
-    //             return $this->errorResponse('User not found', 404);
-    //         }
-
-    //         $sub_subcategory_id = $request->sub_subcategory_id;
-    //         $subcategory_id = $request->subcategory_id;
-    //         $SubSubCategories = SubSubCategory::where(['sub_subcategory_id' => $sub_subcategory_id, 'subcategory_id' => $subcategory_id])->select('id', 'sub_subcategory_name', 'image')->get();
-
-    //         if ($SubSubCategories->isEmpty()) {
-    //             return $this->errorResponse('No subcategory found', 404);
-    //         }
-
-    //         $SubSubCategories->transform(function ($SubSubCategory) {
-    //             $SubSubCategory->image = url($SubSubCategory->image);
-    //             return $SubSubCategory;
-    //         });
-
-    //         return $this->successResponse($SubSubCategories, 'Subsubcategories retrieved successfully');
-    //     } catch (\Exception $e) {
-    //         return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
-    //     }
-    // }
     protected function services(Request $request)
     {
         $validation = $this->validateRequest($request, [
@@ -212,8 +180,7 @@ class UserController extends Controller
                     $query->select('id', 'part_id', 'detail', 'charge', 'labour_charge');
                 }])
                 ->get();
-            // echo "<pre>";
-            // print_r($parts);die;
+            
             if ($parts->isEmpty()) {
                 return $this->errorResponse('No parts found for the given service', 404);
             }
@@ -530,7 +497,7 @@ class UserController extends Controller
             Cart::where('user_id', $user_id)->where('subcategory_id', $subcategory_id)->delete();
 
             if ($payment_method == 'cod') {
-             $serviceProviders = User::where('role', 2)->whereNotNull('device_token')->pluck('device_token')->toArray();
+                $serviceProviders = User::where('role', 2)->whereNotNull('device_token')->pluck('device_token')->toArray();
                 // Save notification for each provider
                 foreach ($serviceProviders as $token) {
                     Notification::create([

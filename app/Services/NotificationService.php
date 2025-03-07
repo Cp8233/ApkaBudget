@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
-    protected $firebaseUrl = 'https://fcm.googleapis.com/v1/projects/apka-budget-provider/messages:send';
+    protected $firebaseUrl = 'https://fcm.googleapis.com/v1/projects/apka-budget-partner/messages:send';
     protected $accessToken;
 
     public function __construct()
     {
-        $serviceAccount = json_decode(file_get_contents(storage_path('app/apka-budget-partner-firebase-adminsdk-fbsvc-bbba3caaee.json')), true);
+        $serviceAccount = json_decode(file_get_contents(storage_path('app/apka-budget-partner-firebase-adminsdk-fbsvc-509ccf49ab.json')), true);
         $this->accessToken = $this->getAccessToken($serviceAccount);
     }
 

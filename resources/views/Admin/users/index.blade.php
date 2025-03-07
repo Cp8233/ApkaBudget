@@ -12,7 +12,7 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                <thead class="thead-dark">
+                <thead class="bg-primary text-white">
                     <tr>
                         <th>Sr. no</th>
                         <th>Name</th>
@@ -36,7 +36,7 @@
                             <a href="{{route('admin.edit_users', ['id' => $val->id])}}" class="btn btn-sm btn-primary" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <button class="btn btn-sm btn-danger delete-btn" data-url="{{ route('admin.delete_users', ['id' => $val->id]) }}" title="Delete"> <i class="fa fa-trash" aria-hidden="true"></i> </button>
+                            {{--<button class="btn btn-sm btn-danger delete-btn" data-url="{{ route('admin.delete_users', ['id' => $val->id]) }}" title="Delete"> <i class="fa fa-trash" aria-hidden="true"></i> </button>--}}
                         </td>
                     </tr>
                     @endforeach

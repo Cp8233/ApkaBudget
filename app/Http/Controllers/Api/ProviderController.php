@@ -130,13 +130,13 @@ class ProviderController extends Controller
                 return $this->errorResponse('User not found', 404);
             }
 
-           if($this->user->id == 4){
-               
-            $plan = Plan::where('type', $request->type)->where('id',5)->get();
-           }else{
-               
-            $plan = Plan::where('type', $request->type)->where('id',3)->get();
-           }
+            // if ($this->user->id == 4) {
+
+            //     $plan = Plan::where('type', $request->type)->where('id', 5)->get();
+            // } else {
+
+                $plan = Plan::where('type', $request->type)->get();
+            // }
 
             if (!$plan) {
                 return $this->errorResponse('Invalid plan selected', 400);
@@ -204,7 +204,7 @@ class ProviderController extends Controller
 
             // Transaction::create($transactionData);
 
-            return $this->successResponse('Transaction added successfully',$request->status == 'success' ? 'Success' : 'Payment failed, please try again');
+            return $this->successResponse('Transaction added successfully', $request->status == 'success' ? 'Success' : 'Payment failed, please try again');
         } catch (\Exception $e) {
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }
@@ -288,197 +288,6 @@ class ProviderController extends Controller
         return response()->json(['error' => 'Failed to create Razorpay order'], 500);
     }
 
-    //   protected function initiatePayment(Request $request)
-    // {
-    //     $validation = $this->validateRequest($request, [
-    //         'plan_id' => 'required|exists:plans,id'
-    //     ]);
-
-    //     if ($validation) return $validation;
-
-    //     try {
-    //         if (!$this->user) {
-    //             return $this->errorResponse('User not found', 404);
-    //         }
-
-    //         $plan = Plan::findOrFail($request->plan_id);
-    //         $amount = $plan->price * 100; // Convert to paise
-
-    //         // PhonePe credentials
-    //         $merchantId = env('PHONEPE_MERCHANT_ID');
-    //         $saltKey = env('PHONEPE_SALT_KEY');
-    //         $saltIndex = env('PHONEPE_SALT_INDEX');
-    //         $baseUrl = env('PHONEPE_BASE_URL');
-
-    //         // Generate unique transaction ID
-    //         $transactionId = 'TXN-' . strtoupper(Str::random(10));
-
-    //         // Prepare payload for payment initiation
-    //         $payload = [
-    //             "merchantId" => $merchantId,
-    //             "merchantTransactionId" => $transactionId,
-    //             "merchantUserId" => (string) $this->user->id,
-    //             "amount" => $amount,
-    //             "redirectUrl" => url('/api/payment-callback'),
-    //             "redirectMode" => "REDIRECT",
-    //             "callbackUrl" => url('/api/payment-callback'),
-    //             "mobileNumber" => $this->user->mobile_no,
-    //             "deviceContext" => [
-    //                 "deviceOS" => "ANDROID"
-    //             ],
-    //             "paymentInstrument" => [
-    //                 "type" => "UPI_INTENT"
-    //             ]
-    //         ];
-
-    //         $payloadBase64 = base64_encode(json_encode($payload));
-    //         $checksum = hash('sha256', $payloadBase64 . "/pg/v1/pay" . $saltKey) . "###" . $saltIndex;
-
-    //         $response = Http::withHeaders([
-    //             'Content-Type' => 'application/json',
-    //             'X-VERIFY' => $checksum
-    //         ])->post($baseUrl . "/pg/v1/pay", ['request' => $payloadBase64]);
-
-    //         $responseData = $response->json();
-    //         dd($responseData);
-    //         Log::info('PhonePe Response:', $responseData);
-
-    //         if (!empty($responseData['success']) && $responseData['success']) {
-    //             $redirectUrl = $responseData['data']['instrumentResponse']['redirectInfo']['url'] ?? null;
-    //             if ($redirectUrl) {
-    //                 Transaction::create([
-    //                     'user_id' => $this->user->id,
-    //                     'type' => $plan->type,
-    //                     'transaction_id' => $transactionId,
-    //                     'amount' => $plan->price,
-    //                     'status' => 'pending',
-    //                     'subscription_id' => $plan->id,
-    //                     'transaction' => 2,
-    //                 ]);
-
-    //                 return $this->successResponse([
-    //                     'payment_url' => $redirectUrl,
-    //                     'transaction_id' => $transactionId
-    //                 ]);
-    //             }
-    //         }
-
-    //         return $this->errorResponse('Payment initiation failed', 500);
-    //     } catch (\Exception $e) {
-    //         return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
-    //     }
-    // }
-
-    protected function paymentCallback(Request $request)
-    {
-        Log::info('PhonePe Callback:', $request->all());
-
-        $transaction = Transaction::where('transaction_id', $request->input('transactionId'))->first();
-
-        if (!$transaction) {
-            return $this->errorResponse('Transaction not found', 404);
-        }
-
-        $paymentStatus = strtolower($request->input('transactionStatus')); // success, failed, pending
-
-        $transaction->update(['status' => $paymentStatus]);
-
-        if ($paymentStatus === 'success') {
-            $plan = Plan::find($transaction->subscription_id);
-
-            Subscription::updateOrCreate(
-                ['user_id' => $transaction->user_id, 'type' => $plan->type],
-                [
-                    'type' => $plan->type,
-                    'user_id' => $transaction->user_id,
-                    'plan_id' => $plan->id,
-                    'status' => 'active',
-                    'start_date' => now(),
-                    'end_date' => now()->addDays($plan->duration)
-                ]
-            );
-        }
-
-        return $this->successResponse('Payment status updated successfully');
-    }
-
-    protected function verifyPayment(Request $request)
-    {
-        // Validate the incoming request
-        $validation = $this->validateRequest($request, [
-            'transaction_id' => 'required|exists:transactions,transaction_id'
-        ]);
-
-        if ($validation) return $validation;
-
-        try {
-            if (!$this->user) {
-                return $this->errorResponse('User not found', 404);
-            }
-
-            // Fetch the pending transaction
-            $transaction = Transaction::where('transaction_id', $request->transaction_id)
-                ->where('user_id', $this->user->id)
-                ->where('status', 'pending')
-                ->first();
-
-            if (!$transaction) {
-                return $this->errorResponse('Transaction not found or already processed', 400);
-            }
-
-            // PhonePe environment variables
-            $merchantId = env('PHONEPE_MERCHANT_ID');
-            $saltKey = env('PHONEPE_SALT_KEY');
-            $saltIndex = env('PHONEPE_SALT_INDEX');
-            $baseUrl = rtrim(env('PHONEPE_BASE_URL'), '/');
-
-            // Prepare API URL and checksum
-            $statusUrl = "/pg/v1/status/$merchantId/{$transaction->transaction_id}";
-            $checksum = hash('sha256', $statusUrl . $saltKey) . "###" . $saltIndex;
-
-            // Make the API request to check payment status
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'X-VERIFY' => $checksum,
-                'X-MERCHANT-ID' => $merchantId,
-            ])->get($baseUrl . $statusUrl);
-
-            $responseData = $response->json();
-            Log::info('PhonePe Status API Response:', $responseData);
-
-            // Handle PhonePe response
-            if (!$response->successful() || empty($responseData['success'])) {
-                return $this->errorResponse('Payment verification failed', 400, ['response' => $responseData]);
-            }
-
-            $paymentStatus = strtolower($responseData['data']['state'] ?? 'failed');
-            $transaction->update(['status' => $paymentStatus]);
-
-            // Handle payment success
-            if ($paymentStatus === 'completed') {
-                $plan = Plan::find($transaction->subscription_id);
-                Subscription::updateOrCreate(
-                    ['user_id' => $this->user->id, 'type' => $plan->type],
-                    [
-                        'type' => $plan->type,
-                        'user_id' => $this->user->id,
-                        'plan_id' => $plan->id,
-                        'status' => 'active',
-                        'start_date' => now(),
-                        'end_date' => now()->addDays($plan->duration)
-                    ]
-                );
-
-                return $this->successResponse('Payment verified');
-            }
-
-            // Handle pending or failed payments
-            return $this->errorResponse('Payment verification failed', 400, ['status' => $paymentStatus]);
-        } catch (\Exception $e) {
-            Log::error('Payment verification error:', ['error' => $e->getMessage()]);
-            return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
-        }
-    }
     protected function makeCall(Request $request)
     {
         // Validate incoming request
@@ -486,7 +295,7 @@ class ProviderController extends Controller
             'to' => 'required|numeric|digits:10', // Customer ka number
         ]);
 
-        
+
         $toNumber = '+91' . $request->to; // E.164 format for India (+91)
 
         // Twilio API endpoint

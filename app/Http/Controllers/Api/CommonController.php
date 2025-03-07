@@ -156,138 +156,125 @@ class CommonController extends Controller
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }
     }
-protected function handleWebhook(Request $request)
-{
-    Log::info('🚀 Webhook Initiated');
+    protected function handleWebhook(Request $request)
+    {
+        Log::info('Webhook Initiated');
+        try {
 
-    try {
-        // 1. Get webhook secret & signature
-        $webhookSecret = env('RAZORPAY_WEBHOOK_SECRET');
-        $signature = $request->header('X-Razorpay-Signature');
-        $payload = $request->getContent();
+            $webhookSecret = env('RAZORPAY_WEBHOOK_SECRET');
+            $signature = $request->header('X-Razorpay-Signature');
+            $payload = $request->getContent();
 
-        Log::info('🔐 Webhook Secret:', ['webhookSecret' => $webhookSecret]);
-        Log::info('📜 Received Signature:', ['signature' => $signature]);
+            Log::info('Webhook Secret:', ['webhookSecret' => $webhookSecret]);
+            Log::info('Received Signature:', ['signature' => $signature]);
 
-        // 2. Verify signature
-        $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
-        Log::info('✅ Expected Signature:', ['expectedSignature' => $expectedSignature]);
+            $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
+            Log::info('Expected Signature:', ['expectedSignature' => $expectedSignature]);
 
-        if (!hash_equals($expectedSignature, $signature)) {
-            Log::error('❌ Invalid webhook signature');
-            return response()->json(['error' => 'Invalid signature'], 403);
-        }
+            if (!hash_equals($expectedSignature, $signature)) {
+                Log::error('Invalid webhook signature');
+                return $this->errorResponse('Invalid signature', 403);
+            }
 
-        $payload = $request->all();
-        $event = $payload['event'] ?? null;
-        $payment = $payload['payload']['payment']['entity'] ?? null;
+            $payload = $request->all();
+            Log::info('Payload',$payload);
+            $event = $payload['event'] ?? null;
+            $payment = $payload['payload']['payment']['entity'] ?? null;
 
-        if (!$payment) {
-            Log::error('❌ Payment entity not found');
-            return response()->json(['error' => 'Invalid event type'], 400);
-        }
+            $userId = $payment['notes']['user_id'] ?? null;
+            $planId = $payment['notes']['plan_id'] ?? null;
+            $amount = $payment['amount'] ?? null; // in paise
+            $transactionId = $payment['id'] ?? null;
+            $paymentStatus = $payment['status'] ?? 'failed';
+            $failureReason = $payment['error_description'] ?? 'N/A';
 
-        // 3. Extract data
-        $userId = $payment['notes']['user_id'] ?? null;
-        $planId = $payment['notes']['plan_id'] ?? null;
-        $amount = $payment['amount'] ?? null; // in paise
-        $transactionId = $payment['id'] ?? null;
-        $paymentStatus = $payment['status'] ?? 'failed';
-        $failureReason = $payment['error_description'] ?? 'N/A';
-
-        Log::info('🧾 Extracted Data:', [
-            'userId' => $userId,
-            'planId' => $planId,
-            'amount' => $amount,
-            'transactionId' => $transactionId
-        ]);
-
-        // 4. Validate required fields
-        if (!$userId || !$planId || !$transactionId || !$amount) {
-            Log::error('❗ Missing required fields', [
+            Log::info('Extracted Data:', [
                 'userId' => $userId,
                 'planId' => $planId,
-                'transactionId' => $transactionId,
-                'amount' => $amount
+                'amount' => $amount,
+                'transactionId' => $transactionId
             ]);
-            return response()->json(['error' => 'Invalid data'], 400);
-        }
 
-        // 5. Find user and plan
-        $plan = Plan::find($planId);
-        $user = User::find($userId);
+            if (!$userId || !$planId || !$transactionId || !$amount) {
+                Log::error('Missing required fields', [
+                    'userId' => $userId,
+                    'planId' => $planId,
+                    'transactionId' => $transactionId,
+                    'amount' => $amount
+                ]);
+                return $this->errorResponse('User or plan not found', 404);
+            }
 
-        if (!$plan || !$user) {
-            Log::error('❌ User or Plan not found', [
-                'planId' => $planId,
-                'userId' => $userId
-            ]);
-            return response()->json(['error' => 'User or plan not found'], 404);
-        }
+            $plan = Plan::find($planId);
+            $user = User::find($userId);
 
-        // Convert amount to INR (paise to rupees)
-        $amountInRupees = $amount / 100;
+            if (!$plan || !$user) {
+                Log::error('User or Plan not found', [
+                    'planId' => $planId,
+                    'userId' => $userId
+                ]);
+                return $this->errorResponse('User or plan not found', 404);
+            }
 
-        // 6. Handle payment events
-        if ($event === 'payment.authorized') {
-            $capture = $this->paymentService->capturePayment($transactionId, $amount);
-            $status = $capture ? 'success' : 'failed';
-        } elseif ($event === 'payment.failed') {
-            $status = 'failed';
-        } else {
-            Log::info('⚠️ Unhandled event type', ['event' => $event]);
-            return response()->json(['error' => 'Unhandled event type'], 400);
-        }
+            // Convert amount to INR (paise to rupees)
+            $amountInRupees = $amount / 100;
 
-$startDate = ($status === 'success') ? now() : null;
-$endDate = ($status === 'success') ? now()->addDays($plan->duration) : null;
-        // 7. Update or create subscription
-        $subscriptionStatus = ($status === 'success') ? 'active' : 'pending';
+            if ($event === 'payment.authorized') {
+                $capture = $this->paymentService->capturePayment($transactionId, $amount);
+                $status = $capture ? 'success' : 'failed';
+            } elseif ($event === 'payment.failed') {
+                $status = 'failed';
+            } else {
+                return $this->errorResponse('Unhandled event type', 400);
+            }
 
-        $existingSubscription = Subscription::updateOrCreate(
-            ['user_id' => $userId, 'type' => $plan->type],
-            [
-                'plan_id' => $planId,
+            $startDate = ($status === 'success') ? now() : null;
+            $endDate = ($status === 'success') ? now()->addDays($plan->duration) : null;
+
+            $subscriptionStatus = ($status === 'success') ? 'active' : 'pending';
+
+            $existingSubscription = Subscription::updateOrCreate(
+                ['user_id' => $userId, 'type' => $plan->type],
+                [
+                    'plan_id' => $planId,
+                    'status' => $subscriptionStatus,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate
+                ]
+            );
+
+            Log::info('Subscription processed', [
                 'status' => $subscriptionStatus,
-                'start_date' => $startDate,
-                'end_date' => $endDate
-            ]
-        );
+                'subscriptionId' => $existingSubscription->id
+            ]);
 
-        Log::info('✅ Subscription processed', [
-            'status' => $subscriptionStatus,
-            'subscriptionId' => $existingSubscription->id
-        ]);
+            Transaction::create([
+                'type' => $plan->type,
+                'user_id' => $userId,
+                'transaction' => 2, // debit
+                'amount' => $amountInRupees,
+                'transaction_id' => $transactionId,
+                'subscription_id' => $existingSubscription->id,
+                'status' => $status,
+                'failure_reason' => $failureReason
+            ]);
 
-        // 8. Create transaction log
-        Transaction::create([
-            'type' => $plan->type,
-            'user_id' => $userId,
-            'transaction' => 2, // debit
-            'amount' => $amountInRupees,
-            'transaction_id' => $transactionId,
-            'subscription_id' => $existingSubscription->id,
-            'status' => $status,
-            'failure_reason' => $failureReason
-        ]);
+            Log::info('Transaction recorded');
 
-        Log::info('✅ Transaction recorded');
-
-        return $this->successResponse('Webhook processed successfully', $status);
-    } catch (\Exception $e) {
-        Log::error('❌ Webhook processing failed', ['error' => $e->getMessage()]);
-        return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
+            return $this->successResponse('Webhook processed successfully', $status);
+        } catch (\Exception $e) {
+            Log::error('Webhook processing failed', ['error' => $e->getMessage()]);
+            return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
+        }
     }
-}
 
-public function testPayment()
-{
-    try {
-        $payment = $this->paymentService->capturePayment('pay_Q3S0bisKSeRSh1', 100);
-        return $this->successResponse('Payment captured', $payment);
-    } catch (\Exception $e) {
-        return $this->errorResponse('Payment failed', 500, ['error' => $e->getMessage()]);
+    public function testPayment()
+    {
+        try {
+            $payment = $this->paymentService->capturePayment('pay_Q3S0bisKSeRSh1', 100);
+            return $this->successResponse('Payment captured', $payment);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Payment failed', 500, ['error' => $e->getMessage()]);
+        }
     }
-}
-
 }

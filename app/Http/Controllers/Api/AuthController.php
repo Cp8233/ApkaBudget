@@ -22,6 +22,8 @@ class AuthController extends Controller
             'city_id'    => 'required|exists:cities,id',
             'pincode'    => 'required|string|max:10',
             'address'    => 'required|string|max:500',
+            'latitude'    => 'required',
+            'longitude'    => 'required',
         ]);
 
         if ($validation) return $validation;
@@ -29,6 +31,7 @@ class AuthController extends Controller
         try {
 
             $user = User::create([
+                'role'          => 2, // Setting role as Provider (role 2)
                 'name'          => $request->name,
                 'mobile_no'     => $request->mobile_no,
                 'email'         => $request->email,
@@ -39,11 +42,12 @@ class AuthController extends Controller
                 'city_id'       => $request->city_id,
                 'pincode'       => $request->pincode,
                 'address'       => $request->address,
-                'role'          => 2, // Setting role as Provider (role 2)
+                'latitude'       => $request->latitude,
+                'longitude'       => $request->longitude,
             ]);
 
             return $this->successResponse(
-                $user->only(['id', 'name', 'mobile_no', 'email', 'country_id', 'state_id', 'city_id', 'pincode', 'address']),
+                $user->only(['id', 'name', 'mobile_no', 'email', 'country_id', 'state_id', 'city_id', 'pincode', 'address','latitude','longitude']),
                 'Provider registered successfully'
             );
         } catch (\Exception $e) {
