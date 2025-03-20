@@ -11,7 +11,7 @@ class Order extends Model
 
     
     protected $table = 'orders';
-    protected $fillable = ['user_id', 'subcategory_id','address_id','total_price','payment_method','status','booking_id','transaction_id','slot_start_time','slot_end_time'];
+    protected $fillable = ['user_id', 'subcategory_id','address_id','total_price','payment_method','status','booking_id','transaction_id','slot_date','slot_start_time','slot_end_time','provider_id'];
 
     // Relation with User Model
     public function user()
@@ -33,6 +33,10 @@ class Order extends Model
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class, 'order_id');
+    }
+        public function provider()
+    {
+        return $this->belongsTo(User::class, 'provider_id');
     }
 
 }

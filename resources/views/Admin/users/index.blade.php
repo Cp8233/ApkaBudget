@@ -26,18 +26,27 @@
                 <tbody>
                     @foreach ($users as $key => $val)
                     <tr>
-                        <td>{{ ++$key }}</td>
-                        <td>{{ $val->name }}</td>
-                        <td>{{ $val->email }}</td>
-                        <td>{{ $val->mobile_no }}</td>
-                        <td>{{ $val->device_id }}</td>
-                        <td>{{$val->ip_address}}</td>
-                        <td>
-                            <a href="{{route('admin.edit_users', ['id' => $val->id])}}" class="btn btn-sm btn-primary" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            {{--<button class="btn btn-sm btn-danger delete-btn" data-url="{{ route('admin.delete_users', ['id' => $val->id]) }}" title="Delete"> <i class="fa fa-trash" aria-hidden="true"></i> </button>--}}
-                        </td>
+                       <td>{{ ++$key }}</td>
+                                <td>{{ $val->name }}</td>
+                                <td>{{ $val->email }}</td>
+                                <td>{{ $val->mobile_no }}</td>
+                                <td>{{ $val->device_id }}</td>
+                                <td>{{ $val->ip_address }}</td>
+                                <td>
+                                    <a href="{{ route('admin.edit_users', ['id' => $val->id]) }}"
+                                        class="btn btn-sm btn-primary" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{{ route('admin.bookings', ['userId' => $val->id]) }}"
+                                        class="btn btn-sm btn-primary" title="Bookings">
+                                        <i class="fas fa-calendar-check"></i>
+                                    </a>
+                                    <a href="{{ route('admin.addresses', ['userId' => $val->id]) }}"
+                                        class="btn btn-sm btn-success" title="Add Address">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                    </a>
+                                    {{-- <button class="btn btn-sm btn-danger delete-btn" data-url="{{ route('admin.delete_users', ['id' => $val->id]) }}" title="Delete"> <i class="fa fa-trash" aria-hidden="true"></i> </button> --}}
+                                </td>
                     </tr>
                     @endforeach
                 </tbody>

@@ -60,6 +60,18 @@ Route::middleware(['auth:admin'])->prefix('admin')->group(function () {
     Route::match(['get', 'post'], 'users/{id}/edit', [AdminController::class, 'edit_users'])->name('admin.edit_users');
     Route::delete('users/{id}/delete', [AdminController::class, 'delete_users'])->name('admin.delete_users');
     
+    Route::get('users/{userId}/bookings', [AdminController::class, 'bookings'])->name('admin.bookings');
+    Route::match(['get', 'post'], 'users/{userId}/bookings/create-booking', [AdminController::class, 'create_booking'])->name('admin.create_booking');
+
+    Route::get('users/{userId}/addresses', [AdminController::class, 'addresses'])->name('admin.addresses');
+    Route::match(['get', 'post'], 'users/{userId}/addresses/add-address', [AdminController::class, 'add_address'])->name('admin.add_address');
+
+
+    Route::get('/get-subcategories/{categoryId}', [AdminController::class, 'getSubcategories'])->name('admin.getSubcategories');
+    Route::get('/get-sub-subcategories/{categoryId}/{subcategoryId}', [AdminController::class, 'getSubSubcategories'])->name('admin.getSubSubcategories');
+    Route::get('/get-services/{categoryId}/{subcategoryId}/{subSubcategoryId}', [AdminController::class, 'getServices'])->name('admin.getServices');
+    Route::get('/get-daily-slots', [AdminController::class, 'getDailySlots']);
+    
     //Provides Route
 
     Route::get('providers', [AdminController::class, 'providers'])->name('admin.providers');
@@ -67,6 +79,12 @@ Route::middleware(['auth:admin'])->prefix('admin')->group(function () {
     Route::match(['get', 'post'], 'providers/{id}/edit', [AdminController::class, 'edit_providers'])->name('admin.edit_providers');
     Route::delete('providers/{id}/delete', [AdminController::class, 'delete_providers'])->name('admin.delete_providers');
 
+    Route::get('/get-zones/{providerId}', [AdminController::class, 'getZones'])->name('get_zones');
+    Route::post('/assign-zones', [AdminController::class, 'assignZones'])->name('admin.assign_zones');
+
+
+    Route::get('/get-plans/{type}', [AdminController::class, 'getPlans']);
+    Route::get('/activate-security/{id}/{planId}', [AdminController::class, 'activateSecurity']);
 
     // dynamic state & city selection
 
@@ -88,7 +106,14 @@ Route::middleware(['auth:admin'])->prefix('admin')->group(function () {
 
     //transaction
     Route::get('transaction',[AdminController::class,'transaction'])->name('admin.transaction');
-    Route::get('transection-provider',[AdminController::class,'TransProvider'])->name('admin.transection.provider');
+    
+     //zone
+    Route::get('zone', [AdminController::class, 'zone'])->name('admin.zones');
+    Route::match(['get', 'post'], 'zone/add', [AdminController::class, 'add_zone'])->name('admin.add_zone');
+    // Route::match(['get', 'post'], 'assign_provider', [AdminController::class, 'assign_provider'])->name('admin.assign_provider');
+    // Route::get('get_providers/{zone_id}', [AdminController::class, 'get_providers'])->name('admin.get_providers');
+    
+    Route::get('all-bookings', [AdminController::class, 'all_bookings'])->name('admin.all_bookings');
 });
 
 

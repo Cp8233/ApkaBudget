@@ -12,7 +12,7 @@
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                <thead class="thead-dark">
+                <thead class="bg-primary text-white">
                     <tr>
                         <th>Sr.n</th>
                         <th>Category</th>

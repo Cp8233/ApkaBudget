@@ -37,7 +37,9 @@ class LoggerService
         'edit_profile',
         'send_notification',
         'handleWebhook',
-        'testPayment'
+        'testPayment',
+        'booking_detail',
+        'booking_action'
     ];
 
     public static function isAllowed($method)

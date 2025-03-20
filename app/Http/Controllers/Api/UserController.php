@@ -443,6 +443,7 @@ class UserController extends Controller
             'subcategory_id'     => 'required|exists:sub_categories,id',
             'address_id' => 'required|exists:addresses,id',
             'payment_method' => 'required|in:online,cod',
+            'slot_date' => 'required|date_format:Y-m-d|after_or_equal:today',//2025-03-11
             'slot_start_time' => 'required|date_format:H:i', // Format: 09:00
             'slot_end_time' => 'required|date_format:H:i|after:slot_start_time' // Ensure end time is after start time
         ]);
@@ -458,31 +459,41 @@ class UserController extends Controller
             $subcategory_id = $request->subcategory_id;
             $address_id = $request->address_id;
             $payment_method = $request->payment_method;
+            $slot_date = $request->slot_date;
             $slot_start_time = $request->slot_start_time;
             $slot_end_time = $request->slot_end_time;
 
             // Fetch cart items for this subcategory
             $cartItems = Cart::where('user_id', $user_id)
                 ->where('subcategory_id', $subcategory_id)
+                // ->whereNull('deleted_at')
                 ->get();
 
-            // if ($cartItems->isEmpty()) {
-            //     return $this->errorResponse('Cart is empty for this subcategory', 400);
-            // }
+            if ($cartItems->isEmpty()) {
+                return $this->errorResponse('Cart is empty for this subcategory', 400);
+            }
 
             $total_price = $cartItems->sum('price');
             $booking_id = 'BOOK-' . strtoupper(Str::random(8));
-            $order = Order::create([
-                'user_id' => $user_id,
-                'subcategory_id' => $subcategory_id,
-                'address_id' => $address_id,
-                'total_price' => $total_price,
-                'payment_method' => $payment_method,
-                'booking_id' => $booking_id,
-                'status' => 'pending',
-                'slot_start_time' => $slot_start_time,
-                'slot_end_time' => $slot_end_time
-            ]);
+            // Check for existing pending order
+            $order = Order::firstOrCreate(
+                [
+                    'user_id' => $user_id,
+                    'subcategory_id' => $subcategory_id,
+                    'status' => 'pending'
+                ],
+                [
+                    'address_id' => $address_id,
+                    'total_price' => $total_price,
+                    'payment_method' => $payment_method,
+                    'booking_id' => $booking_id,
+                    'slot_date' => $slot_date,
+                    'slot_start_time' => $slot_start_time,
+                    'slot_end_time' => $slot_end_time
+                ]
+            );
+
+            OrderItem::where('order_id', $order->id)->delete();
 
             foreach ($cartItems as $cartItem) {
                 OrderItem::create([
@@ -494,7 +505,7 @@ class UserController extends Controller
                 ]);
             }
             //cart item delete
-            Cart::where('user_id', $user_id)->where('subcategory_id', $subcategory_id)->delete();
+            Cart::where('user_id', $user_id)->where('subcategory_id', $subcategory_id)->update(['deleted_at' => now()]);
 
             if ($payment_method == 'cod') {
                 $serviceProviders = User::where('role', 2)->whereNotNull('device_token')->pluck('device_token')->toArray();
@@ -503,7 +514,7 @@ class UserController extends Controller
                     Notification::create([
                         'user_id' => User::where('device_token', $token)->value('id'),
                         'title'   => 'New Booking Received!',
-                        'messge' => "You have received a new booking (ID: {$booking_id}). Total Amount: ₹{$total_price}."
+                        'message' => "You have received a new booking (ID: {$booking_id}). Total Amount: ₹{$total_price}."
                     ]);
                 }
 
@@ -513,6 +524,8 @@ class UserController extends Controller
                     $message = "You have received a new booking (ID: {$booking_id}). Total Amount: ₹{$total_price}.";
                     $res = $this->notificationService->sendPushNotification($serviceProviders, $title, $message);
                 }
+
+                Cart::where('user_id', $user_id)->where('subcategory_id', $subcategory_id)->forceDelete();
             }
 
             $Responsedata = [
@@ -543,30 +556,27 @@ class UserController extends Controller
 
             $transaction_id = $request->transaction_id ?? 'TXN-' . strtoupper(Str::random(10));
 
-            $transactionData = [
+            Transaction::create([
                 'type' => 3,
                 'user_id' => $this->user->id,
                 'order_id' => $order->id,
-                'transaction' => 2, // 2 = debit
+                'transaction' => 2,
                 'amount' => $order->total_price,
                 'transaction_id' => $transaction_id,
                 'status' => $request->payment_status
-            ];
-
-            Transaction::create($transactionData);
+            ]);
 
             if ($request->payment_status == 'success') {
                 $order->status = 'completed';
-                $order->transaction_id = $transaction_id;
+                Cart::where('user_id', $this->user->id)->where('subcategory_id', $order->subcategory_id)->forceDelete();
 
                 $serviceProviders = User::where('role', 2)->whereNotNull('device_token')->pluck('device_token')->toArray();
-
                 // Save notification for each provider
                 foreach ($serviceProviders as $token) {
                     Notification::create([
                         'user_id' => User::where('device_token', $token)->value('id'),
                         'title'   => 'New Booking Received!',
-                        'messge' => "You have received a new booking (ID: {$order->booking_id}). Total Amount: ₹{$order->total_price}."
+                        'message' => "You have received a new booking (ID: {$order->booking_id}). Total Amount: ₹{$order->total_price}."
                     ]);
                 }
 
@@ -578,8 +588,9 @@ class UserController extends Controller
                 }
             } else {
                 $order->status = 'failed';
-                $order->transaction_id = $transaction_id;
+                Cart::where('user_id', $this->user->id)->where('subcategory_id', $order->subcategory_id)->restore();
             }
+            $order->transaction_id = $transaction_id;
             $order->save();
 
             $Responsedata = [

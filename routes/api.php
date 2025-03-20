@@ -40,7 +40,9 @@ Route::middleware(['api.auth'])->group(function () {
     Route::get('identity_types', [ProviderController::class, 'identity_types']);
     Route::post('payment_status', [ProviderController::class, 'payment_status']);// payment karne ke baad ye api hit hogi
     Route::get('dashboard', [ProviderController::class, 'dashboard']);
-    Route::get('bookings', [ProviderController::class, 'bookings']); //provider side all booking list
+    Route::post('bookings', [ProviderController::class, 'bookings']); //provider side all booking list
+    Route::post('booking_detail', [ProviderController::class, 'booking_detail']);
+    Route::post('booking_action', [ProviderController::class, 'booking_action']);
     Route::post('plans', [ProviderController::class, 'plans']);
     
     

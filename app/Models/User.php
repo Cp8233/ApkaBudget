@@ -85,5 +85,9 @@ class User extends Authenticatable
 {
     return $this->hasMany(Transaction::class, 'user_id');
 }
+  public function zones()
+    {
+        return $this->belongsToMany(Zone::class, 'zone_provider');
+    }
 
 }

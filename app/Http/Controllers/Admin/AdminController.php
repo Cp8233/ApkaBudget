@@ -18,6 +18,17 @@ use App\Models\Service;
 use App\Models\State;
 use App\Models\City;
 use App\Models\User;
+use App\Models\Zone;
+use App\Models\Plan;
+use App\Models\Subscription;
+use Illuminate\Support\Str;
+use App\Models\Order;
+use Carbon\Carbon;
+use App\Models\OrderItem;
+use App\Models\Address;
+use App\Models\Notification;
+use App\Models\ZoneProvider;
+use App\Services\NotificationService;
 
 
   /** ============================
@@ -25,9 +36,16 @@ use App\Models\User;
              * ============================ */
 class AdminController extends Controller
 {
-    protected function index()
+    protected $notificationService;
+    public function __construct(NotificationService $notificationService)
     {
-        return view('Admin.dashboard');
+        $this->notificationService = $notificationService;
+    }
+    protected function index()
+    {$totalUsers = User::where('role', 1)->count();
+        $totalProviders = User::where('role', 2)->count();
+        $totalEarning = Transaction::where(['transaction' => 2, 'status' => 'success'])->sum('amount');
+        return view('Admin.dashboard',compact('totalUsers', 'totalProviders', 'totalEarning'));
     }
 
 
@@ -263,8 +281,10 @@ class AdminController extends Controller
           if ($request->isMethod('post')) {
               $validator = Validator::make($request->all(), [
                 'name' => 'required|regex:/^[A-Za-z\s]+$/|max:255',
-               'mobile_no' => 'required|numeric|digits:10|unique:users,mobile_no',
-                'email' => 'required|email|unique:users,email', 
+                'mobile_no' => 'required|numeric|digits:10|unique:users,mobile_no',
+                'address' => 'required|string|max:255',
+                'latitude' => 'required|numeric',
+                'longitude' => 'required|numeric',
               ]);
 
           if ($validator->fails()) {
@@ -277,7 +297,9 @@ class AdminController extends Controller
         $user = new User();
         $user->name      = $request->name;
         $user->mobile_no = $request->mobile_no;
-        $user->email     = $request->email;
+       $user->address = $request->address;
+            $user->latitude = $request->latitude;
+            $user->longitude = $request->longitude;
         $user->role      = 1; 
         $user->save();
 
@@ -329,15 +351,324 @@ class AdminController extends Controller
         'route' => route('admin.users'),
      ], 200);
    }
+   
+       protected function bookings($userId)
+    {
+        $bookings = Order::with(['provider:id,name,mobile_no'])->where('user_id', $userId)->orderBy('id', 'DESC')->get();
+        return view('Admin.bookings.index', compact('bookings', 'userId'));
+    }
+    protected function addresses($userId)
+    {
+        $addresses = Address::where('user_id', $userId)->orderBy('id', 'DESC')->get();
+        return view('Admin.addresses.index', compact('addresses', 'userId'));
+    }
+    protected function add_address(Request $request, $userId)
+    {
+        if ($request->isMethod('post')) {
+
+            $validator = Validator::make($request->all(), [
+                'address' => 'required|string|max:255',
+                'latitude' => 'required|numeric',
+                'longitude' => 'required|numeric',
+                'flat_no' => 'required',
+                'landmark' => 'required',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            Address::create([
+                'type' => 1,
+                'user_id' => $userId,
+                'address' => $request->address,
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
+                'flat_no' => $request->flat_no,
+                'landmark' => $request->landmark
+            ]);
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Address Added successfully',
+                'route' => route('admin.addresses', ['userId' => $userId]),
+            ], 200);
+        } else {
+            return view('Admin.addresses.add', compact('userId'));
+        }
+    }
+    protected function create_booking(Request $request, $userId)
+    {
+        if ($request->isMethod('post')) {
+            $validator = Validator::make($request->all(), [
+                'subcategory_id' => 'required|exists:sub_categories,id',
+                'slot_date' => 'required|date',
+                'slot_time' => 'required',
+                'services' => 'required|array',
+                'services.*' => 'exists:services,id',
+                'address_id' => 'required|exists:addresses,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+            $slotTime = explode('-', $request->slot_time);
+            $slotStartTime = $slotTime[0];
+            $slotEndTime = $slotTime[1];
+
+            $totalPrice = Service::whereIn('id', $request->services)->sum('price');
+            $bookingId = 'BOOK-' . strtoupper(Str::random(8));
+
+            $order = Order::create([
+                'user_id' => $userId,
+                'subcategory_id' => $request->subcategory_id,
+                'address_id' => $request->address_id,
+                'total_price' => $totalPrice,
+                'payment_method' => 'cod',
+                'booking_id' => $bookingId,
+                'slot_date' => $request->slot_date,
+                'slot_start_time' => $slotStartTime,
+                'slot_end_time' => $slotEndTime,
+                'status' => 'placed'
+            ]);
+
+            foreach ($request->services as $serviceId) {
+                $service = Service::find($serviceId);
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'service_id' => $service->id,
+                    'quantity' => 1,
+                    'unit_price' => $service->price,
+                    'total_price' => $service->price
+                ]);
+            }
+            // Find providers based on zones
+            $address = Address::find($request->address_id);
+            $zones = Zone::select('id', 'boundary')->get();
+            $providerIds = [];
+
+            foreach ($zones as $zone) {
+                $boundaries = json_decode($zone->boundary, true);
+                if ($this->isPointInPolygon($address->latitude, $address->longitude, $boundaries)) {
+                    $zoneProviders = ZoneProvider::where('zone_id', $zone->id)->pluck('user_id');
+                    $providerIds = array_merge($providerIds, $zoneProviders->toArray());
+                }
+            }
+
+            $serviceProviders = User::whereIn('id', $providerIds)->where('role', 2)->whereNotNull('device_token')->get();
+
+            // Send notifications
+            foreach ($serviceProviders as $provider) {
+                Notification::create([
+                    'user_id' => $provider->id,
+                    'title' => 'New Booking Received!',
+                    'message' => "You have received a new booking (ID: {$bookingId}). Total Amount: ₹{$totalPrice}."
+                ]);
+            }
+
+            if (!$serviceProviders->isEmpty()) {
+                $title = 'New Booking Received!';
+                $message = "You have received a new booking (ID: {$bookingId}). Total Amount: ₹{$totalPrice}.";
+                $tokens = $serviceProviders->pluck('device_token')->toArray();
+                $this->notificationService->sendPushNotification($tokens, $title, $message);
+            }
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Booking Create Successfully',
+                'route' => route('admin.bookings', ['userId' => $userId]),
+            ], 200);
+        } else {
+            $categories = Category::all();
+            $addresses = Address::where('user_id', $userId)->orderBy('id', 'DESC')->get();
+            return view('Admin.bookings.add', compact('userId', 'categories', 'addresses'));
+        }
+    }
+    protected function isPointInPolygon($latitude, $longitude, $polygon)
+    {
+        if (!is_array($polygon) || count($polygon) < 3) {
+            throw new \Exception("Invalid polygon data: Polygon must have at least 3 points.");
+        }
+
+        foreach ($polygon as $index => $point) {
+            if (!isset($point['lng']) || !isset($point['lat'])) {
+                throw new \Exception("Invalid polygon data at index $index: Missing lat or lng.");
+            }
+        }
+
+        $inside = false;
+        $x = (float)$longitude;
+        $y = (float)$latitude;
+        $numPoints = count($polygon);
+        $j = $numPoints - 1;
+
+        for ($i = 0; $i < $numPoints; $j = $i++) {
+            $xi = (float)$polygon[$i]['lng'];
+            $yi = (float)$polygon[$i]['lat'];
+            $xj = (float)$polygon[$j]['lng'];
+            $yj = (float)$polygon[$j]['lat'];
+
+            $intersect = (($yi > $y) != ($yj > $y)) &&
+                ($x < ($xj - $xi) * ($y - $yi) / ($yj - $yi) + $xi);
+
+            if ($intersect) {
+                $inside = !$inside;
+            }
+        }
+
+        return $inside;
+    }
+
+
+    public function getSubcategories($categoryId)
+    {
+        $subcategories = SubCategory::where('category_id', $categoryId)->get();
+        return response()->json($subcategories);
+    }
+
+    // Fetch Sub Subcategories
+    public function getSubSubcategories($categoryId, $subcategoryId)
+    {
+        $subSubcategories = SubSubCategory::where('sub_subcategory_id', $categoryId)
+            ->where('subcategory_id', $subcategoryId)
+            ->get();
+        return response()->json($subSubcategories);
+    }
+
+    // Fetch Services
+    public function getServices($categoryId, $subcategoryId, $subSubcategoryId)
+    {
+        $services = Service::where('category_id', $categoryId)
+            ->where('subcategory_id', $subcategoryId)
+            ->where('sub_subcategory_id', $subSubcategoryId)
+            ->get();
+        return response()->json($services);
+    }
+    // Get available slots
+    public function getDailySlots(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date'
+        ]);
+
+        $date = Carbon::parse($request->date)->setTimezone('Asia/Kolkata');
+        $startTime = $date->copy()->setTime(9, 0); // Start at 9 AM
+        $endTime = $date->copy()->setTime(18, 0);  // End at 6 PM
+        $interval = 15; // 15-minute slots
+        $slots = [];
+
+        $now = Carbon::now('Asia/Kolkata');
+
+        while ($startTime < $endTime) {
+            $nextSlot = $startTime->copy()->addMinutes($interval);
+
+            // Skip past slots if date is today
+            if ($date->isToday() && $startTime->lessThan($now)) {
+                $startTime = $nextSlot;
+                continue;
+            }
+
+            $slots[] = [
+                'slot' => $startTime->format('g:i A') . ' - ' . $nextSlot->format('g:i A'),
+                'start_time' => $startTime->format('H:i'),
+                'end_time' => $nextSlot->format('H:i'),
+                'is_available' => true
+            ];
+
+            $startTime = $nextSlot;
+        }
+
+        return response()->json(['slots' => $slots]);
+    }
 
      /** ============================
              * ✅Providers Functionality 
              * ============================ */
+                 public function getZones($providerId)
+    {
+        $zones = Zone::all();
+        $assignedZoneIds = $zones->where('providers', '!=', null)->pluck('id')->toArray();
+        $assignedZones = Zone::whereHas('providers', function ($query) use ($providerId) {
+            $query->where('user_id', $providerId);
+        })->pluck('id')->toArray();
+
+        return response()->json([
+            'zones' => $zones,
+            'assignedZones' => $assignedZones,
+        ]);
+    }
+
+    public function assignZones(Request $request)
+    {
+        $request->validate([
+            'provider_id' => 'required|exists:users,id',
+            'zones' => 'nullable|array',
+            'zones.*' => 'exists:zones,id',
+        ]);
+
+        $provider = User::findOrFail($request->provider_id);
+        $provider->zones()->sync($request->zones);
+
+        return response()->json(['message' => 'Zones assigned successfully!']);
+    }
    protected function providers()
    {
        $providers=User::where('role',2)->orderBy('id','DESC')->get();
         return view('Admin.providers.index', compact('providers'));
    }
+   protected function getPlans($type)
+    {
+        $plans = Plan::where('type', $type)->get();
+        return response()->json(['plans' => $plans]);
+    }
+    protected function activateSecurity($userId, $planId)
+    {
+        $plan = Plan::find($planId);
+        if (!$plan) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid plan selected!']);
+        }
+
+        if (Subscription::hasActiveSecurity($userId, $plan->type)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Plan is already active!',
+            ]);
+        }
+
+        $startDate = now();
+        $endDate = now()->addDays($plan->duration);
+        $subscriptionStatus = 'active';
+
+        $existingSubscription = Subscription::updateOrCreate(
+            ['user_id' => $userId, 'type' => $plan->type],
+            [
+                'plan_id'   => $planId,
+                'status'    => $subscriptionStatus,
+                'start_date' => $startDate,
+                'end_date'  => $endDate,
+            ]
+        );
+
+        $transactionId = 'TXN-Admin';
+
+        Transaction::create([
+            'type'            => $plan->type,
+            'user_id'         => $userId,
+            'transaction'     => 2, // Debit Transaction
+            'amount'          => $plan->price,
+            'transaction_id'  => $transactionId,
+            'subscription_id' => $existingSubscription->id,
+            'status'          => 'success',
+        ]);
+
+        return response()->json(['status' => 'success', 'message' => 'Security plan activated successfully!']);
+    }
    protected function add_providers(Request $request)
    {
        if ($request->isMethod('post')) {
@@ -803,9 +1134,10 @@ protected function deleteService($id)
              * ✅Transaction Functionality 
              * ============================ */  
         
-    protected function transaction(){
-        $transactions = Transaction::all();
-        return view('Admin.transaction.index',compact('transactions'));
+protected function transaction()
+    {
+        $transactions = Transaction::with(['user:id,name,mobile_no'])->OrderBy('id', 'DESC')->get();
+        return view('Admin.transaction.index', compact('transactions'));
     }
 
     protected function TransProvider()
@@ -815,6 +1147,91 @@ protected function deleteService($id)
         ->get();
     
         return view('Admin.transaction.transProvider', compact('providers'));
+    }
+    protected function zone()
+    {
+        $data = Zone::with('providers')->OrderBy('id', 'DESC')->get();
+        $providers = User::where('role', 2)->select('id', 'name')->get();
+        return view('Admin.zone.index', compact('data', 'providers'));
+    }
+    protected function add_zone(Request $request)
+    {
+        if ($request->isMethod('post')) {
+            $validator = Validator::make($request->all(), [
+                'name'       => 'required|regex:/^[A-Za-z\s]+$/|max:255',
+                'boundary'   => 'required|json',
+                'center_lat' => 'required|numeric|between:-90,90',
+                'center_lng' => 'required|numeric|between:-180,180',
+                'perimeter'  => 'required|numeric|min:0',
+                'area'       => 'required|numeric|min:0',
+                'areas'      => 'required|json',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+            // Create new Zone
+            $zone = new Zone();
+            $zone->name       = $request->name;
+            $zone->boundary   = $request->boundary;
+            $zone->center_lat = $request->center_lat;
+            $zone->center_lng = $request->center_lng;
+            $zone->perimeter  = $request->perimeter;
+            $zone->area       = $request->area;
+            $zone->areas      = $request->areas;
+            $zone->save();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Zone added successfully!',
+                'route' => route('admin.zones'),
+            ], 200);
+        }
+        return view('Admin.zone.add');
+    }
+    protected function get_providers($zone_id)
+    {
+        $zone = Zone::with('providers')->find($zone_id); // Eager load providers
+        $allProviders = User::where('role', 2)->get(); // Ya jo bhi condition ho
+
+        $assignedProviders = $zone->providers->pluck('id')->toArray(); // Assigned providers' IDs
+
+        return response()->json([
+            'providers' => $allProviders,
+            'assignedProviders' => $assignedProviders,
+        ]);
+    }
+
+    protected function assign_provider(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'zone_id' => 'required|exists:zones,id',
+            'providers' => 'required|array',
+            'providers.*' => 'exists:users,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 0,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+        $zone = Zone::find($request->zone_id);
+        $zone->providers()->sync($request->providers ?? []);
+        return response()->json([
+            'status' => 1,
+            'message' => 'Providers assigned successfully!',
+            'route' => route('admin.zones'),
+        ], 200);
+    }
+    
+        protected function all_bookings()
+    {
+        $bookings = Order::OrderBy('id', 'DESC')->get();
+        return view('Admin.all-bookings.index', compact('bookings'));
     }
     
 }

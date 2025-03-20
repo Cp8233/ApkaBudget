@@ -95,6 +95,7 @@ class CommonController extends Controller
                     [
                         'identity_image' => $this->user->identity_image ? url($this->user->identity_image) : null,
                         'security_added' => Subscription::hasActiveSecurity($this->user->id, 2),
+                        'plan_activity' => Subscription::hasActiveSecurity($this->user->id, 1),
                         'delivered_service' => 0
                     ]
                 )
@@ -156,6 +157,118 @@ class CommonController extends Controller
             return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
         }
     }
+    // protected function handleWebhook(Request $request)
+    // {
+    //     Log::info('Webhook Initiated');
+    //     try {
+
+    //         $webhookSecret = env('RAZORPAY_WEBHOOK_SECRET');
+    //         $signature = $request->header('X-Razorpay-Signature');
+    //         $payload = $request->getContent();
+
+    //         Log::info('Webhook Secret:', ['webhookSecret' => $webhookSecret]);
+    //         Log::info('Received Signature:', ['signature' => $signature]);
+
+    //         $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
+    //         Log::info('Expected Signature:', ['expectedSignature' => $expectedSignature]);
+
+    //         if (!hash_equals($expectedSignature, $signature)) {
+    //             Log::error('Invalid webhook signature');
+    //             return $this->errorResponse('Invalid signature', 403);
+    //         }
+
+    //         $payload = $request->all();
+    //         Log::info('Payload',$payload);
+    //         $event = $payload['event'] ?? null;
+    //         $payment = $payload['payload']['payment']['entity'] ?? null;
+
+    //         $userId = $payment['notes']['user_id'] ?? null;
+    //         $planId = $payment['notes']['plan_id'] ?? null;
+    //         $amount = $payment['amount'] ?? null; // in paise
+    //         $transactionId = $payment['id'] ?? null;
+    //         $paymentStatus = $payment['status'] ?? 'failed';
+    //         $failureReason = $payment['error_description'] ?? 'N/A';
+
+    //         Log::info('Extracted Data:', [
+    //             'userId' => $userId,
+    //             'planId' => $planId,
+    //             'amount' => $amount,
+    //             'transactionId' => $transactionId
+    //         ]);
+
+    //         if (!$userId || !$planId || !$transactionId || !$amount) {
+    //             Log::error('Missing required fields', [
+    //                 'userId' => $userId,
+    //                 'planId' => $planId,
+    //                 'transactionId' => $transactionId,
+    //                 'amount' => $amount
+    //             ]);
+    //             return $this->errorResponse('User or plan not found', 404);
+    //         }
+
+    //         $plan = Plan::find($planId);
+    //         $user = User::find($userId);
+
+    //         if (!$plan || !$user) {
+    //             Log::error('User or Plan not found', [
+    //                 'planId' => $planId,
+    //                 'userId' => $userId
+    //             ]);
+    //             return $this->errorResponse('User or plan not found', 404);
+    //         }
+
+    //         // Convert amount to INR (paise to rupees)
+    //         $amountInRupees = $amount / 100;
+
+    //         if ($event === 'payment.authorized') {
+    //             $capture = $this->paymentService->capturePayment($transactionId, $amount);
+    //             $status = $capture ? 'success' : 'failed';
+    //         } elseif ($event === 'payment.failed') {
+    //             $status = 'failed';
+    //         } else {
+    //             return $this->errorResponse('Unhandled event type', 400);
+    //         }
+
+    //         $startDate = ($status === 'success') ? now() : null;
+    //         $endDate = ($status === 'success') ? now()->addDays($plan->duration) : null;
+
+    //         $subscriptionStatus = ($status === 'success') ? 'active' : 'pending';
+
+    //         $existingSubscription = Subscription::updateOrCreate(
+    //             ['user_id' => $userId, 'type' => $plan->type],
+    //             [
+    //                 'plan_id' => $planId,
+    //                 'status' => $subscriptionStatus,
+    //                 'start_date' => $startDate,
+    //                 'end_date' => $endDate
+    //             ]
+    //         );
+
+    //         Log::info('Subscription processed', [
+    //             'status' => $subscriptionStatus,
+    //             'subscriptionId' => $existingSubscription->id
+    //         ]);
+
+    //         Transaction::create([
+    //             'type' => $plan->type,
+    //             'user_id' => $userId,
+    //             'transaction' => 2, // debit
+    //             'amount' => $amountInRupees,
+    //             'transaction_id' => $transactionId,
+    //             'subscription_id' => $existingSubscription->id,
+    //             'status' => $status,
+    //             'failure_reason' => $failureReason
+    //         ]);
+
+    //         Log::info('Transaction recorded');
+
+    //         return $this->successResponse('Webhook processed successfully', $status);
+    //     } catch (\Exception $e) {
+    //         Log::error('Webhook processing failed', ['error' => $e->getMessage()]);
+    //         return $this->errorResponse('Something went wrong', 500, ['error' => $e->getMessage()]);
+    //     }
+    // }
+    
     protected function handleWebhook(Request $request)
     {
         Log::info('Webhook Initiated');
@@ -177,12 +290,14 @@ class CommonController extends Controller
             }
 
             $payload = $request->all();
-            Log::info('Payload',$payload);
+            Log::info('Payload', $payload);
             $event = $payload['event'] ?? null;
             $payment = $payload['payload']['payment']['entity'] ?? null;
 
             $userId = $payment['notes']['user_id'] ?? null;
             $planId = $payment['notes']['plan_id'] ?? null;
+            $orderId = $payment['notes']['order_id'] ?? null;
+            $type = $payment['notes']['type'] ?? 1; // 1 for subscriptions, 2 for orders
             $amount = $payment['amount'] ?? null; // in paise
             $transactionId = $payment['id'] ?? null;
             $paymentStatus = $payment['status'] ?? 'failed';
@@ -191,75 +306,130 @@ class CommonController extends Controller
             Log::info('Extracted Data:', [
                 'userId' => $userId,
                 'planId' => $planId,
+                'orderId' => $orderId,
                 'amount' => $amount,
                 'transactionId' => $transactionId
             ]);
 
-            if (!$userId || !$planId || !$transactionId || !$amount) {
+            if (!$userId || !$transactionId || !$amount) {
                 Log::error('Missing required fields', [
                     'userId' => $userId,
-                    'planId' => $planId,
                     'transactionId' => $transactionId,
                     'amount' => $amount
                 ]);
                 return $this->errorResponse('User or plan not found', 404);
             }
 
-            $plan = Plan::find($planId);
-            $user = User::find($userId);
-
-            if (!$plan || !$user) {
-                Log::error('User or Plan not found', [
-                    'planId' => $planId,
-                    'userId' => $userId
-                ]);
-                return $this->errorResponse('User or plan not found', 404);
-            }
-
-            // Convert amount to INR (paise to rupees)
             $amountInRupees = $amount / 100;
 
-            if ($event === 'payment.authorized') {
-                $capture = $this->paymentService->capturePayment($transactionId, $amount);
-                $status = $capture ? 'success' : 'failed';
-            } elseif ($event === 'payment.failed') {
-                $status = 'failed';
-            } else {
-                return $this->errorResponse('Unhandled event type', 400);
-            }
+            if ($type == 1) { // Subscription logic
+                $plan = Plan::find($planId);
+                $user = User::find($userId);
 
-            $startDate = ($status === 'success') ? now() : null;
-            $endDate = ($status === 'success') ? now()->addDays($plan->duration) : null;
+                if (!$plan || !$user) {
+                    Log::error('User or Plan not found', [
+                        'planId' => $planId,
+                        'userId' => $userId
+                    ]);
+                    return $this->errorResponse('User or plan not found', 404);
+                }
 
-            $subscriptionStatus = ($status === 'success') ? 'active' : 'pending';
+                if ($event === 'payment.authorized') {
+                    $capture = $this->paymentService->capturePayment($transactionId, $amount);
+                    $status = $capture ? 'success' : 'failed';
+                } elseif ($event === 'payment.failed') {
+                    $status = 'failed';
+                } else {
+                    return $this->errorResponse('Unhandled event type', 400);
+                }
 
-            $existingSubscription = Subscription::updateOrCreate(
-                ['user_id' => $userId, 'type' => $plan->type],
-                [
-                    'plan_id' => $planId,
+                $startDate = ($status === 'success') ? now() : null;
+                $endDate = ($status === 'success') ? now()->addDays($plan->duration) : null;
+
+                $subscriptionStatus = ($status === 'success') ? 'active' : 'pending';
+
+                $existingSubscription = Subscription::updateOrCreate(
+                    ['user_id' => $userId, 'type' => $plan->type],
+                    [
+                        'plan_id' => $planId,
+                        'status' => $subscriptionStatus,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate
+                    ]
+                );
+
+                Log::info('Subscription processed', [
                     'status' => $subscriptionStatus,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate
-                ]
-            );
+                    'subscriptionId' => $existingSubscription->id
+                ]);
 
-            Log::info('Subscription processed', [
-                'status' => $subscriptionStatus,
-                'subscriptionId' => $existingSubscription->id
-            ]);
+                Transaction::create([
+                    'type' => $plan->type,
+                    'user_id' => $userId,
+                    'transaction' => 2, // debit
+                    'amount' => $amountInRupees,
+                    'transaction_id' => $transactionId,
+                    'subscription_id' => $existingSubscription->id,
+                    'status' => $status,
+                    'failure_reason' => $failureReason
+                ]);
 
-            Transaction::create([
-                'type' => $plan->type,
-                'user_id' => $userId,
-                'transaction' => 2, // debit
-                'amount' => $amountInRupees,
-                'transaction_id' => $transactionId,
-                'subscription_id' => $existingSubscription->id,
-                'status' => $status,
-                'failure_reason' => $failureReason
-            ]);
+                Log::info('Transaction recorded');
+            } else { // Order logic
+                $order = Order::find($orderId);
+                if (!$order) {
+                    Log::error('Order not found', ['orderId' => $orderId]);
+                    return $this->errorResponse('Order not found', 404);
+                }
+                if ($event === 'payment.authorized') {
+                    $capture = $this->paymentService->capturePayment($transactionId, $amount);
+                    $status = $capture ? 'success' : 'failed';
+                } elseif ($event === 'payment.failed') {
+                    $status = 'failed';
+                } else {
+                    return $this->errorResponse('Unhandled event type', 400);
+                }
 
-            Log::info('Transaction recorded');
+                $order->status = ($status === 'success') ? 'completed' : 'failed';
+                $order->transaction_id = $transactionId;
+                $order->save();
+
+                if ($status === 'success') {
+                    Cart::where('user_id', $userId)->where('subcategory_id', $order->subcategory_id)->forceDelete();
+
+                    $serviceProviders = User::where('role', 2)->whereNotNull('device_token')->pluck('device_token')->toArray();
+                    foreach ($serviceProviders as $token) {
+                        Notification::create([
+                            'user_id' => User::where('device_token', $token)->value('id'),
+                            'title' => 'New Booking Received!',
+                            'message' => "You have received a new booking (ID: {$order->booking_id}). Total Amount: ₹{$order->total_price}."
+                        ]);
+                    }
+
+                    if (!empty($serviceProviders)) {
+                        $title = 'New Booking Received!';
+                        $message = "Booking ID: {$order->booking_id}, Amount: ₹{$order->total_price}.";
+                        $this->notificationService->sendPushNotification($serviceProviders, $title, $message);
+                    }
+                } else {
+                    Cart::where('user_id', $userId)->where('subcategory_id', $order->subcategory_id)->restore();
+                }
+
+                Transaction::create([
+                    'type' => 3, // for orders
+                    'user_id' => $userId,
+                    'order_id' => $order->id,
+                    'transaction' => 2, // debit
+                    'amount' => $amountInRupees,
+                    'transaction_id' => $transactionId,
+                    'status' => $status,
+                    'failure_reason' => $failureReason
+                ]);
+                Log::info('Order processed', [
+                    'orderId' => $orderId,
+                    'status' => $order->status
+                ]);
+            }
 
             return $this->successResponse('Webhook processed successfully', $status);
         } catch (\Exception $e) {
